@@ -28,6 +28,7 @@
         crossorigin="anonymous"></script>
 
     <script src="binance.json"></script>
+    <script src="exchangeMapping.js"></script>
     <script src="xcsv.js"></script>
 
     <style>
@@ -59,6 +60,12 @@
         max-width: 680px;
         padding: 0 15px;
         }
+
+        /*ul {*/
+            /*-webkit-column-count: 2;*/
+            /*-moz-column-count: 2;*/
+            /*column-count: 2;*/
+        /*}*/
     </style>
 </head>
 
@@ -86,10 +93,11 @@
         </div>
         <br/>
 
+
         <div class="row justify-content-md-center">
 
-            <div class="">
-                <h6>Suported Exchanges</h6>
+            <div>
+                    <h6>Suported Exchanges</h6>
                 <ul id="id_SupportedExchangeList">
                 </ul>
             </div>
@@ -139,24 +147,30 @@
         var gLoadedData = [];
         var gConvertedData = "";
         var gOriginalFilename = "";
+        var guessAllFilename = [];
+        var guessFilename = '';
 
         $('body').xcsv();
 
-        for (var exchange in exchangeMapping) {
-
-            $('#id_SupportedExchangeList').append("<li>" + exchange + "</li>");
+        for (var exchange in exchangeMapping){
+            if(!(exchange === 'Binance_Deposit_Widhdraw' || exchange == 'CoinTracking_closeing_Position' || exchange == 'Kraken_legers' || exchange == 'BTCMarkets_2')){
+                $('#id_SupportedExchangeList').append("<li>" + exchange + "</li>");
+            }
         }
 
         $('#id_btn_convert').on("click", function () {
 
             gConvertedData = $('body').xcsv("csvheader") + "\n";
-
-            for (var key in gLoadedData) {
-                var exchange = $('body').xcsv("detect", gLoadedData[key]);
-                gConvertedData += $('body').xcsv("convert", gLoadedData[key], exchange);
-                gConvertedData += "\n";
-            }
-
+            gLoadedData.map(row => {
+                for (var key in row) {
+                    var exchange = $('body').xcsv("detect", row[key]);
+                    if(exchange === 'Binance_Deposit_Widhdraw'){
+                        guessFilename = guessAllFilename.shift();
+                    }
+                    gConvertedData += $('body').xcsv("convert", row[key], exchange);
+                    gConvertedData += "\n";
+                }
+            });
             $('#id_ConvertButtons').show();
         });
 
@@ -180,13 +194,40 @@
 
                     data = new Uint8Array(e.target.result);
                     wb = XLSX.read(data, { type: 'array', raw: 'true' });
-                    FinalData = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
+                    var FinalData = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
+                     FinalData = FinalData.replace(/[\u200B-\u200D\uFEFF]/g, '');
 
                     var exchange = $('body').xcsv("detect", FinalData);
-                    debugger;
-                    gLoadedData[exchange] = FinalData;
 
-                    $('#id_Detected').append("<li>" + exchange + "</li>");
+                    if(exchange === 'Binance_Deposit_Widhdraw'){
+                        if(gOriginalFilename.includes('Withdraw')){
+                            guessAllFilename.push('withdraw');
+                        }else if(gOriginalFilename.includes('Deposit')){
+                            guessAllFilename.push('deposit');
+                        }
+                    }
+                    //debugger;
+                    var temp = {};
+                    temp[exchange] = FinalData;
+                    gLoadedData.push(temp);
+
+                    switch(exchange){
+                        case 'Binance_Deposit_Widhdraw':
+                            $('#id_Detected').append("<li>Binance</li>");
+                            break;
+                        case 'CoinTracking_closeing_Position':
+                            $('#id_Detected').append("<li>CoinTracking</li>");
+                            break;
+                        case 'Kraken_legers':
+                            $('#id_Detected').append("<li>Kraken</li>");
+                        case 'BTCMarkets_2':
+                            $('#id_Detected').append("<li>BTCMarkets</li>");
+                            break;
+                        default:
+                            $('#id_Detected').append("<li>" + exchange + "</li>");
+                            break;
+                    }
+
                     $('#id_DetectedExchangeDiv').show();
                     $('#id_ConvertButtons').hide();
                 };
@@ -202,7 +243,6 @@
             $('#id_Detected').text("");
 
             for (var i = 0, file; file = files[i]; i++) {
-
                 handleFile(file);
             }
 
